@@ -2,6 +2,9 @@ package sora
 
 import "github.com/pion/webrtc/v2"
 
+// Signaling の型定義は以下のURLを参照
+// https://sora-doc.shiguredo.jp/signaling_type
+
 type connectMessage struct {
 	Type        string   `json:"type"`
 	SoraClient  string   `json:"sora_client"`

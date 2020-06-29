@@ -59,6 +59,7 @@ func (c *Connection) Disconnect() {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 
+	c.sendDisconnectMessage()
 	c.closePeerConnection()
 	c.closeWebSocketConnection()
 	c.connectionID = ""
@@ -188,6 +189,17 @@ func (c *Connection) sendConnectMessage() error {
 			CodecType: c.Options.Video.Name,
 		},
 		Metadata: c.Options.Metadata,
+	}
+
+	if err := c.sendMsg(msg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Connection) sendDisconnectMessage() error {
+	msg := &signalingMessage{
+		Type: "disconnect",
 	}
 
 	if err := c.sendMsg(msg); err != nil {
