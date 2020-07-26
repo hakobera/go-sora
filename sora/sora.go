@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pion/rtp"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 )
 
 const (
@@ -15,12 +15,11 @@ const (
 // DefaultOptions は Sora 接続設定のデフォルト値を生成して返します。
 func DefaultOptions() *ConnectionOptions {
 	return &ConnectionOptions{
-		Role:         "recvonly",
-		Audio:        true,
-		Video:        webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000),
-		UseTrickeICE: true,
-		Debug:        false,
-		Metadata:     Metadata{},
+		Role:     "recvonly",
+		Audio:    true,
+		Video:    webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000),
+		Debug:    false,
+		Metadata: Metadata{},
 	}
 }
 

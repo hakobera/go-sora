@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/oklog/ulid/v2"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 )
 
 func getULID() string {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 )
@@ -219,7 +219,6 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 	}
 
 	s := webrtc.SettingEngine{}
-	s.SetTrickle(c.Options.UseTrickeICE)
 	s.SetAnsweringDTLSRole(webrtc.DTLSRoleClient)
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m), webrtc.WithSettingEngine(s))
@@ -318,23 +317,21 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 		c.trace("signaling state changes: %s", signalingState.String())
 	})
 
-	if c.Options.UseTrickeICE {
-		pc.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-			if candidate == nil {
-				return
-			}
+	pc.OnICECandidate(func(candidate *webrtc.ICECandidate) {
+		if candidate == nil {
+			return
+		}
 
-			candidateJSON := candidate.ToJSON()
-			candidateMsg := &candidateMessage{
-				Type:             "candidate",
-				Candidate:        candidateJSON.Candidate,
-				SDPMid:           candidateJSON.SDPMid,
-				SDPMLineIndex:    candidateJSON.SDPMLineIndex,
-				UsernameFragment: candidateJSON.UsernameFragment,
-			}
-			c.sendMsg(candidateMsg)
-		})
-	}
+		candidateJSON := candidate.ToJSON()
+		candidateMsg := &candidateMessage{
+			Type:             "candidate",
+			Candidate:        candidateJSON.Candidate,
+			SDPMid:           candidateJSON.SDPMid,
+			SDPMLineIndex:    candidateJSON.SDPMLineIndex,
+			UsernameFragment: candidateJSON.UsernameFragment,
+		}
+		c.sendMsg(candidateMsg)
+	})
 
 	if c.pc == nil {
 		c.pc = pc

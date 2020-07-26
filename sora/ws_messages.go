@@ -1,6 +1,6 @@
 package sora
 
-import "github.com/pion/webrtc/v2"
+import "github.com/pion/webrtc/v3"
 
 type connectMessage struct {
 	Type        string   `json:"type"`

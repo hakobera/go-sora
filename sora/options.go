@@ -1,6 +1,6 @@
 package sora
 
-import "github.com/pion/webrtc/v2"
+import "github.com/pion/webrtc/v3"
 
 // ConnectionOptions は Sora 接続設定です。
 type ConnectionOptions struct {
@@ -21,9 +21,6 @@ type ConnectionOptions struct {
 
 	// Metadata
 	Metadata Metadata
-
-	// TrickleICE を利用するかどうかのフラグ
-	UseTrickeICE bool
 
 	// Debug 出力をするかどうかのフラグ
 	Debug bool
