@@ -50,6 +50,7 @@ func main() {
 	opts.Metadata.SignalingKey = *signalingKey
 	opts.Audio = false
 	opts.Video = videoCodec
+	opts.Simulcast = sora.SimulcastConfig{Enabled: true, Simulcast: &sora.Simulcast{Quality: sora.SimulcastQualityLow}}
 	opts.Debug = *verbose
 
 	d, err := initVideoDecoder(*videoCodecName)

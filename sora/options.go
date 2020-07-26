@@ -19,6 +19,9 @@ type ConnectionOptions struct {
 	// Audio の設定
 	Audio bool
 
+	// Simulcast の設定
+	Simulcast SimulcastConfig
+
 	// Metadata
 	Metadata Metadata
 
