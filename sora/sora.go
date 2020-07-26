@@ -15,11 +15,12 @@ const (
 // DefaultOptions は Sora 接続設定のデフォルト値を生成して返します。
 func DefaultOptions() *ConnectionOptions {
 	return &ConnectionOptions{
-		Role:     "recvonly",
-		Audio:    true,
-		Video:    webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000),
-		Debug:    false,
-		Metadata: Metadata{},
+		Role:      "recvonly",
+		Audio:     true,
+		Video:     webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000),
+		Simulcast: SimulcastConfig{Enabled: false},
+		Debug:     false,
+		Metadata:  Metadata{},
 	}
 }
 

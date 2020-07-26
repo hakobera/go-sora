@@ -187,7 +187,8 @@ func (c *Connection) sendConnectMessage() error {
 		Video: video{
 			CodecType: c.Options.Video.Name,
 		},
-		Metadata: c.Options.Metadata,
+		Simulcast: c.Options.Simulcast,
+		Metadata:  c.Options.Metadata,
 	}
 
 	if err := c.sendMsg(msg); err != nil {
@@ -199,9 +200,12 @@ func (c *Connection) sendConnectMessage() error {
 func (c *Connection) createPeerConnection(offer *offerMessage) error {
 	c.trace("Start createPeerConnection")
 	m := webrtc.MediaEngine{}
-	err := m.PopulateFromSDP(createOfferSessionDescription(offer.Sdp))
+	codecs, err := populateFromSDP(createOfferSessionDescription(offer.Sdp))
 	if err != nil {
 		return err
+	}
+	for _, codec := range codecs {
+		m.RegisterCodec(codec)
 	}
 
 	vcs := m.GetCodecsByName(c.Options.Video.Name)
@@ -451,6 +455,7 @@ loop:
 				return
 			}
 			if err := c.handleMessage(rawMessage); err != nil {
+				c.trace("handleMessage error: %s", err.Error())
 				break loop
 			}
 		}

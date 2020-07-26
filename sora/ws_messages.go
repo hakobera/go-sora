@@ -1,17 +1,22 @@
 package sora
 
-import "github.com/pion/webrtc/v3"
+import (
+	"encoding/json"
+
+	"github.com/pion/webrtc/v3"
+)
 
 type connectMessage struct {
-	Type        string   `json:"type"`
-	SoraClient  string   `json:"sora_client"`
-	Environment string   `json:"environment"`
-	Role        string   `json:"role"`
-	ChannelID   string   `json:"channel_id"`
-	Sdp         string   `json:"sdp"`
-	Audio       bool     `json:"audio"`
-	Video       video    `json:"video"`
-	Metadata    Metadata `json:"metadata"`
+	Type        string          `json:"type"`
+	SoraClient  string          `json:"sora_client"`
+	Environment string          `json:"environment"`
+	Role        string          `json:"role"`
+	ChannelID   string          `json:"channel_id"`
+	Sdp         string          `json:"sdp"`
+	Audio       bool            `json:"audio"`
+	Video       video           `json:"video"`
+	Simulcast   SimulcastConfig `json:"simulcast"`
+	Metadata    Metadata        `json:"metadata"`
 }
 
 type video struct {
@@ -22,6 +27,30 @@ type Metadata struct {
 	SignalingKey string `json:"signaling_key"`
 	TurnTCPOnly  bool   `json:"turn_tcp_only"`
 	TurnTLSOnly  bool   `json:"turn_tls_only"`
+}
+
+type SimulcastQuality string
+
+const (
+	SimulcastQualityLow    SimulcastQuality = "low"
+	SimulcastQualityMiddle SimulcastQuality = "middle"
+	SimulcastQualityHigh   SimulcastQuality = "high"
+)
+
+type Simulcast struct {
+	Quality SimulcastQuality `json:"quality,omitempty"`
+}
+
+type SimulcastConfig struct {
+	*Simulcast
+	Enabled bool `json:"-"`
+}
+
+func (w SimulcastConfig) MarshalJSON() ([]byte, error) {
+	if !w.Enabled {
+		return []byte("false"), nil
+	}
+	return json.Marshal(w.Simulcast)
 }
 
 type signalingConfig struct {
