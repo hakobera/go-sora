@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ClientVersion = "go-sora v0.1.0"
+	ClientVersion = "go-sora v0.2.0"
 )
 
 // DefaultOptions は Sora 接続設定のデフォルト値を生成して返します。
