@@ -9,11 +9,25 @@ import (
 // Signaling の型定義は以下のURLを参照
 // https://sora-doc.shiguredo.jp/signaling_type
 
+// Role はクライアント役割を指定します
+type Role string
+
+const (
+	// SendRecvRole はマルチストリーム、スポットライトで利用できる role で送受信を行います
+	SendRecvRole Role = "sendrecv"
+
+	// SendOnlyRole はすべてで利用でき、送信のみを行い、受信を行いません
+	SendOnlyRole Role = "sendonly"
+
+	// RecvOnlyRole はすべてで利用でき、受信のみを行い、送信を行いません
+	RecvOnlyRole Role = "recvonly"
+)
+
 type connectMessage struct {
 	Type        string          `json:"type"`
 	SoraClient  string          `json:"sora_client"`
 	Environment string          `json:"environment"`
-	Role        string          `json:"role"`
+	Role        Role            `json:"role"`
 	ChannelID   string          `json:"channel_id"`
 	Sdp         string          `json:"sdp"`
 	Audio       bool            `json:"audio"`

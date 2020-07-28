@@ -7,10 +7,10 @@ type ConnectionOptions struct {
 	// Sora の URL
 	SoraURL string
 
-	// Role (sendonly | sendrecv | recvonly)
-	Role string
+	// Role はクライアントの役割の設定
+	Role Role
 
-	// Channel ID
+	// 接続する Channel ID
 	ChannelID string
 
 	// Video の設定
