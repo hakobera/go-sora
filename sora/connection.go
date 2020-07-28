@@ -41,7 +41,6 @@ type Connection struct {
 	onConnectHandler     func()
 	onDisconnectHandler  func(reason string, err error)
 	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
-	onByeHandler         func()
 
 	callbackMu sync.Mutex
 }
@@ -71,7 +70,6 @@ func (c *Connection) Disconnect() {
 	c.onConnectHandler = func() {}
 	c.onDisconnectHandler = func(reason string, err error) {}
 	c.onTrackPacketHandler = func(track *webrtc.Track, packet *rtp.Packet) {}
-	c.onByeHandler = func() {}
 }
 
 // OnOpen は open イベント発生時のコールバック関数を設定します。
@@ -100,13 +98,6 @@ func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packe
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 	c.onTrackPacketHandler = f
-}
-
-// OnBye は bye イベント発生時のコールバック関数を設定します。
-func (c *Connection) OnBye(f func()) {
-	c.callbackMu.Lock()
-	defer c.callbackMu.Unlock()
-	c.onByeHandler = f
 }
 
 func (c *Connection) trace(format string, v ...interface{}) {
