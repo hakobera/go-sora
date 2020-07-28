@@ -170,7 +170,7 @@ func (c *Connection) sendPongMessage() error {
 func (c *Connection) sendConnectMessage() error {
 	msg := &connectMessage{
 		Type:        "connect",
-		SoraClient:  ClientVersion,
+		SoraClient:  clientVersion,
 		Environment: fmt.Sprintf("Pion WebRTC on %s %s", runtime.GOOS, runtime.GOARCH),
 		Role:        c.Options.Role,
 		ChannelID:   c.Options.ChannelID,
