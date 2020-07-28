@@ -25,9 +25,6 @@ type ConnectionOptions struct {
 	// Metadata
 	Metadata Metadata
 
-	// TrickleICE を利用するかどうかのフラグ
-	UseTrickeICE bool
-
 	// Debug 出力をするかどうかのフラグ
 	Debug bool
 }
