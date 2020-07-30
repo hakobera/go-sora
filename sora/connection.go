@@ -174,13 +174,12 @@ func (c *Connection) sendConnectMessage() error {
 		Environment: fmt.Sprintf("Pion WebRTC on %s %s", runtime.GOOS, runtime.GOARCH),
 		Role:        c.Options.Role,
 		ChannelID:   c.Options.ChannelID,
+		ClientID:    c.Options.ClientID,
 		Sdp:         "",
 		Audio:       c.Options.Audio,
-		Video: video{
-			CodecType: c.Options.Video.Name,
-		},
-		Simulcast: c.Options.Simulcast,
-		Metadata:  c.Options.Metadata,
+		Video:       c.Options.Video,
+		Simulcast:   c.Options.Simulcast,
+		Metadata:    c.Options.Metadata,
 	}
 
 	if err := c.sendMsg(msg); err != nil {
@@ -211,9 +210,13 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 		m.RegisterCodec(codec)
 	}
 
-	vcs := m.GetCodecsByName(c.Options.Video.Name)
+	videoCodecType, err := CreateVideoCodec(c.Options.Video.CodecType)
+	if err != nil {
+		return err
+	}
+	vcs := m.GetCodecsByName(videoCodecType.Name)
 	if len(vcs) == 0 {
-		return fmt.Errorf("Remote peer does not support %s", c.Options.Video.Name)
+		return fmt.Errorf("Remote peer does not support %s", c.Options.Video.CodecType)
 	}
 	c.trace("%+v", *vcs[0])
 

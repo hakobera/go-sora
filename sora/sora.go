@@ -17,23 +17,23 @@ func DefaultOptions() *ConnectionOptions {
 	return &ConnectionOptions{
 		Role:     RecvOnlyRole,
 		Audio:    true,
-		Video:    webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000),
+		Video:    &Video{CodecType: webrtc.VP9},
 		Debug:    false,
-		Metadata: Metadata{},
+		Metadata: &Metadata{},
 	}
 }
 
-// CreateVideoCodecByName はコーデック名に対応する webrtc.RTPCodec を生成して返します。
-func CreateVideoCodecByName(name string) (*webrtc.RTPCodec, error) {
+// CreateVideoCodec はコーデックに対応する webrtc.RTPCodec を生成して返します。
+func CreateVideoCodec(codecType VideoCodecType) (*webrtc.RTPCodec, error) {
 	var codec *webrtc.RTPCodec
 
-	switch name {
-	case webrtc.VP8:
+	switch codecType {
+	case VideoCodecTypeVP8:
 		codec = webrtc.NewRTPVP8Codec(webrtc.DefaultPayloadTypeVP8, 90000)
-	case webrtc.VP9:
+	case VideoCodecTypeVP9:
 		codec = webrtc.NewRTPVP9Codec(webrtc.DefaultPayloadTypeVP9, 90000)
 	default:
-		return nil, fmt.Errorf("go-sora does not suport codec name=%s", name)
+		return nil, fmt.Errorf("go-sora does not suport video codec '%s'", codecType)
 	}
 
 	return codec, nil
