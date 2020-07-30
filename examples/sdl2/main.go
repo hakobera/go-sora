@@ -19,6 +19,7 @@ func main() {
 	channelID := flag.String("channel-id", "", "specify channel ID")
 	videoCodecName := flag.String("video-codec", "VP8", "Specify video codec type [VP8 | VP9]")
 	signalingKey := flag.String("signaling-key", "", "specify signaling key")
+	simulcast := flag.Bool("simulcast", false, "enable simulcast")
 	verbose := flag.Bool("verbose", false, "enable verbose log")
 
 	flag.Parse()
@@ -26,7 +27,7 @@ func main() {
 
 	var err error
 
-	videoCodec, err := sora.CreateVideoCodecByName(*videoCodecName)
+	video, err := CreateVideoByName(*videoCodecName, *simulcast)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -49,7 +50,10 @@ func main() {
 	opts := sora.DefaultOptions()
 	opts.Metadata.SignalingKey = *signalingKey
 	opts.Audio = false
-	opts.Video = videoCodec
+	opts.Video = video
+	if *simulcast {
+		opts.Simulcast = &sora.Simulcast{Quality: sora.SimulcastQualityDefault}
+	}
 	opts.Debug = *verbose
 
 	d, err := initVideoDecoder(*videoCodecName)
@@ -175,4 +179,21 @@ func initVideoDecoder(codec string) (decoder.Decoder, error) {
 	}
 
 	return d, nil
+}
+
+// CreateVideoCodecByName はコーデック名に対応する sora.Video を生成して返します。
+func CreateVideoByName(codecType string, simulcast bool) (*sora.Video, error) {
+	v := &sora.Video{}
+	switch codecType {
+	case string(sora.VideoCodecTypeVP8):
+		v.CodecType = sora.VideoCodecTypeVP8
+	case string(sora.VideoCodecTypeVP9):
+		if simulcast {
+			return nil, fmt.Errorf("Simulcast is only supported for VP8")
+		}
+		v.CodecType = sora.VideoCodecTypeVP9
+	default:
+		return nil, fmt.Errorf("SDL2 example does not suport '%s'", codecType)
+	}
+	return v, nil
 }

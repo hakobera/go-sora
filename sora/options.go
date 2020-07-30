@@ -1,29 +1,30 @@
 package sora
 
-import "github.com/pion/webrtc/v2"
-
 // ConnectionOptions は Sora 接続設定です。
 type ConnectionOptions struct {
 	// Sora の URL
 	SoraURL string
 
-	// Role (sendonly | sendrecv | recvonly)
-	Role string
+	// Role はクライアントの役割の設定
+	Role Role
 
-	// Channel ID
+	// 接続する Channel ID
 	ChannelID string
 
+	// クライアント ID は、sora.conf で allow_client_id_assignment を true に設定した場合のみ指定することが可能です
+	ClientID string
+
 	// Video の設定
-	Video *webrtc.RTPCodec
+	Video *Video
 
 	// Audio の設定
 	Audio bool
 
-	// Metadata
-	Metadata Metadata
+	// Simulcast の設定
+	Simulcast *Simulcast
 
-	// TrickleICE を利用するかどうかのフラグ
-	UseTrickeICE bool
+	// Metadata
+	Metadata *Metadata
 
 	// Debug 出力をするかどうかのフラグ
 	Debug bool
