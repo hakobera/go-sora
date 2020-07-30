@@ -41,11 +41,13 @@ type Connection struct {
 	onConnectHandler     func()
 	onDisconnectHandler  func(reason string, err error)
 	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
+	onNotifyHandler      func(message []byte)
 	onPushHandler        func(message []byte)
 
 	callbackMu sync.Mutex
 }
 
+// Connect は sora に接続します
 func (c *Connection) Connect() error {
 	if c.ws != nil || c.pc != nil {
 		c.trace("connection already exists")
@@ -55,6 +57,7 @@ func (c *Connection) Connect() error {
 	return nil
 }
 
+// Disconnect は sora から切断します
 func (c *Connection) Disconnect() {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
@@ -99,6 +102,13 @@ func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packe
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 	c.onTrackPacketHandler = f
+}
+
+// OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnNotify(f func(message []byte)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onNotifyHandler = f
 }
 
 // OnPush は Sora から push メッセージを受け取った時に発生するコールバック関数を設定します。
@@ -528,7 +538,7 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 		}
 		c.sendPongMessage(pingMsg.Stats)
 	case "notify":
-		// Do nothing
+		c.onNotifyHandler(rawMessage)
 		return nil
 	case "offer":
 		offerMsg := &offerMessage{}

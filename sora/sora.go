@@ -64,6 +64,7 @@ func NewConnection(soraURL string, channelID string, options *ConnectionOptions)
 		onConnectHandler:     func() {},
 		onDisconnectHandler:  func(reason string, err error) {},
 		onTrackPacketHandler: func(track *webrtc.Track, packet *rtp.Packet) {},
+		onNotifyHandler:      func(message []byte) {},
 		onPushHandler:        func(message []byte) {},
 	}
 
