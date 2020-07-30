@@ -164,9 +164,16 @@ func (c *Connection) sendMsg(v interface{}) error {
 	return nil
 }
 
-func (c *Connection) sendPongMessage() error {
+func (c *Connection) sendPongMessage(stats bool) error {
 	msg := &pongMessage{
-		Type: "pong",
+		Type:  "pong",
+		Stats: []webrtc.Stats{},
+	}
+
+	if stats && c.pc != nil {
+		for _, s := range c.pc.GetStats() {
+			msg.Stats = append(msg.Stats, s)
+		}
 	}
 
 	if err := c.sendMsg(msg); err != nil {
@@ -515,7 +522,11 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 
 	switch message.Type {
 	case "ping":
-		c.sendPongMessage()
+		pingMsg := &pingMessage{}
+		if err := unmarshalMessage(c, rawMessage, &pingMsg); err != nil {
+			return err
+		}
+		c.sendPongMessage(pingMsg.Stats)
 	case "notify":
 		// Do nothing
 		return nil

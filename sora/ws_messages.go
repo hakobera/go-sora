@@ -118,8 +118,14 @@ type signalingMessage struct {
 	Type string `json:"type"`
 }
 
+type pingMessage struct {
+	Type  string `json:"type"`
+	Stats bool   `json:"stats"`
+}
+
 type pongMessage struct {
-	Type string `json:"type"`
+	Type  string         `json:"type"`
+	Stats []webrtc.Stats `json:"stats,omitempty"`
 }
 
 type candidateMessage struct {
