@@ -41,6 +41,7 @@ type Connection struct {
 	onConnectHandler     func()
 	onDisconnectHandler  func(reason string, err error)
 	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
+	onPushHandler        func(message []byte)
 
 	callbackMu sync.Mutex
 }
@@ -98,6 +99,13 @@ func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packe
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 	c.onTrackPacketHandler = f
+}
+
+// OnPush は Sora から push メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnPush(f func(message []byte)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onPushHandler = f
 }
 
 func (c *Connection) trace(format string, v ...interface{}) {
@@ -531,6 +539,9 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 			return err
 		}
 		return c.setOffer(updateMsg)
+	case "push":
+		c.onPushHandler(rawMessage)
+		return nil
 	default:
 		c.trace("invalid message type %s", message.Type)
 		return errorInvalidMessageType
