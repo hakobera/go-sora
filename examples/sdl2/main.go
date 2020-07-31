@@ -75,7 +75,7 @@ func main() {
 	defer con.Disconnect()
 
 	con.OnConnect(func() {
-		fmt.Println("Connected")
+		log.Println("Connected")
 	})
 
 	con.OnTrackPacket(func(track *webrtc.Track, packet *rtp.Packet) {
@@ -91,6 +91,10 @@ func main() {
 				videoFrameChan <- frame
 			}
 		}
+	})
+
+	con.OnNotify(func(eventType string, rawMessage []byte) {
+		log.Printf("OnNotify: event_type=%s, rawMessage=%s", eventType, rawMessage)
 	})
 
 	err = con.Connect()

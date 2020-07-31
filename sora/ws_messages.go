@@ -135,3 +135,8 @@ type candidateMessage struct {
 	SDPMLineIndex    *uint16 `json:"sdpMLineIndex,omitempty"`
 	UsernameFragment string  `json:"usernameFragment,omitempty"`
 }
+
+type notifyMessage struct {
+	Type      string `json:"type"`
+	EventType string `json:"event_type"`
+}

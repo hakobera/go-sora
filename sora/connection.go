@@ -41,7 +41,7 @@ type Connection struct {
 	onConnectHandler     func()
 	onDisconnectHandler  func(reason string, err error)
 	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
-	onNotifyHandler      func(message []byte)
+	onNotifyHandler      func(eventType string, message []byte)
 	onPushHandler        func(message []byte)
 
 	callbackMu sync.Mutex
@@ -105,7 +105,7 @@ func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packe
 }
 
 // OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
-func (c *Connection) OnNotify(f func(message []byte)) {
+func (c *Connection) OnNotify(f func(eventType string, message []byte)) {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 	c.onNotifyHandler = f
@@ -538,7 +538,11 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 		}
 		c.sendPongMessage(pingMsg.Stats)
 	case "notify":
-		c.onNotifyHandler(rawMessage)
+		notifyMsg := &notifyMessage{}
+		if err := unmarshalMessage(c, rawMessage, &notifyMsg); err != nil {
+			return err
+		}
+		c.onNotifyHandler(notifyMsg.EventType, rawMessage)
 		return nil
 	case "offer":
 		offerMsg := &offerMessage{}
