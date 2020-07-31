@@ -51,6 +51,24 @@ go run . -url wss://sora-labo.shiguredo.jp/signaling -channel-id <your_github_id
 
 プログラムを終了するには、`Ctrl+C` を押します。
 
+## 追加オプション
+
+### VP9 を受信する
+
+VP9 を受信する場合は、`-video-codec VP9` を指定します。
+
 ### 詳細ログを出力する
 
 詳細ログを出力する場合は、`-verbose` オプションを追加します。
+
+### サイマルキャスト受信する
+
+Sora のオンラインサンプル 「サイマルキャスト送信」をブラウザで開き、接続したいチャンネルIDを入力し、動画のエンコード方式に `VP8` を選択して、connect ボタンを押します。
+
+上記で入力した RoomID をコマンドラインパラメータとして指定します。
+
+```console
+go run . -url wss://sora-labo.shiguredo.jp/signaling -channel-id <your_github_id>@sora-labo -signaling-key <your_signaling_key> -video-codec VP8 -simulcast
+```
+
+サイマルキャストでは VP9 は指定できません。
