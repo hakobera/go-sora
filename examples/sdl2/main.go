@@ -19,6 +19,7 @@ func main() {
 	channelID := flag.String("channel-id", "", "specify channel ID")
 	videoCodecName := flag.String("video-codec", "VP8", "Specify video codec type [VP8 | VP9]")
 	signalingKey := flag.String("signaling-key", "", "specify signaling key")
+	simulcast := flag.Bool("simulcast", false, "enable simulcast")
 	verbose := flag.Bool("verbose", false, "enable verbose log")
 
 	flag.Parse()
@@ -26,7 +27,7 @@ func main() {
 
 	var err error
 
-	videoCodec, err := sora.CreateVideoCodecByName(*videoCodecName)
+	video, err := createVideoByName(*videoCodecName, *simulcast)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,11 +35,10 @@ func main() {
 	const windowWidth = 640
 	const windowHeight = 480
 
-	window, renderer, texture, err := initSDL("go-sora SDL2 Example", windowWidth, windowHeight)
+	window, renderer, err := initSDL("go-sora SDL2 Example", windowWidth, windowHeight)
 	if err != nil {
 		log.Fatal("Failed to initialize SDL", err)
 	}
-	defer texture.Destroy()
 	defer renderer.Destroy()
 	defer window.Destroy()
 	defer sdl.Quit()
@@ -49,8 +49,10 @@ func main() {
 	opts := sora.DefaultOptions()
 	opts.Metadata.SignalingKey = *signalingKey
 	opts.Audio = false
-	opts.Video = videoCodec
-	opts.Simulcast = sora.SimulcastConfig{Enabled: true, Simulcast: &sora.Simulcast{Quality: sora.SimulcastQualityLow}}
+	opts.Video = video
+	if *simulcast {
+		opts.Simulcast = &sora.Simulcast{Quality: sora.SimulcastQualityDefault}
+	}
 	opts.Debug = *verbose
 
 	d, err := initVideoDecoder(*videoCodecName)
@@ -64,15 +66,11 @@ func main() {
 	videoFrameChan := make(chan *decoder.Frame, 60)
 	defer close(videoFrameChan)
 
-	decodedImgChan := make(chan decoder.DecodedImage)
-
-	go d.Process(videoFrameChan, decodedImgChan)
-
 	con := sora.NewConnection(*signalingURL, *channelID, opts)
 	defer con.Disconnect()
 
 	con.OnConnect(func() {
-		fmt.Println("Connected")
+		log.Println("Connected")
 	})
 
 	con.OnTrackPacket(func(track *webrtc.Track, packet *rtp.Packet) {
@@ -90,33 +88,25 @@ func main() {
 		}
 	})
 
+	con.OnNotify(func(eventType string, rawMessage []byte) {
+		log.Printf("OnNotify: event_type=%s, rawMessage=%s", eventType, rawMessage)
+	})
+
 	err = con.Connect()
 	if err != nil {
 		log.Fatal("failed to connect Sora", err)
 	}
 
 	go func() {
-		for {
-			var err error = nil
-			select {
-			case img, ok := <-decodedImgChan:
-				if !ok {
-					return
-				}
+		for result := range d.Process(videoFrameChan) {
+			if result.Err != nil {
+				log.Println("Failed to process video frame:", result.Err)
+				continue
+			}
 
-				err = texture.UpdateYUV(nil, img.Plane(0), img.Stride(0), img.Plane(1), img.Stride(1), img.Plane(2), img.Stride(2))
-				if err != nil {
-					log.Println("Failed to update SDL Texture", err)
-					continue
-				}
-
-				// TODO: アスペクト比を維持したままの拡大縮小
-				src := &sdl.Rect{0, 0, int32(img.Width()), int32(img.Height())}
-				dst := &sdl.Rect{0, 0, windowWidth, windowHeight}
-
-				renderer.Clear()
-				renderer.Copy(texture, src, dst)
-				renderer.Present()
+			err := renderFrame(renderer, result.Image, windowWidth, windowHeight)
+			if err != nil {
+				log.Println(err.Error())
 			}
 		}
 	}()
@@ -135,31 +125,26 @@ func main() {
 	}
 }
 
-func initSDL(name string, width int32, height int32) (*sdl.Window, *sdl.Renderer, *sdl.Texture, error) {
+func initSDL(name string, width int32, height int32) (*sdl.Window, *sdl.Renderer, error) {
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to init SDL: %w", err)
+		return nil, nil, fmt.Errorf("failed to init SDL: %w", err)
 	}
 
 	window, err := sdl.CreateWindow(name, sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, width, height, sdl.WINDOW_SHOWN|sdl.WINDOW_ALLOW_HIGHDPI)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create SDL window: %w", err)
+		return nil, nil, fmt.Errorf("failed to create SDL window: %w", err)
 	}
 
 	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create SDL renderer: %w", err)
+		return nil, nil, fmt.Errorf("failed to create SDL renderer: %w", err)
 	}
 
-	texture, err := renderer.CreateTexture(sdl.PIXELFORMAT_YV12, sdl.TEXTUREACCESS_STREAMING, width, height)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create SDL texture: %w", err)
-	}
-
-	return window, renderer, texture, nil
+	return window, renderer, nil
 }
 
-func initVideoDecoder(codec string) (decoder.Decoder, error) {
-	var d decoder.Decoder
+func initVideoDecoder(codec string) (decoder.VideoDecoder, error) {
+	var d decoder.VideoDecoder
 	var err error
 
 	switch codec {
@@ -176,4 +161,50 @@ func initVideoDecoder(codec string) (decoder.Decoder, error) {
 	}
 
 	return d, nil
+}
+
+func createVideoByName(codecType string, simulcast bool) (*sora.Video, error) {
+	v := &sora.Video{}
+	switch codecType {
+	case string(sora.VideoCodecTypeVP8):
+		v.CodecType = sora.VideoCodecTypeVP8
+	case string(sora.VideoCodecTypeVP9):
+		if simulcast {
+			return nil, fmt.Errorf("Simulcast is only supported for VP8")
+		}
+		v.CodecType = sora.VideoCodecTypeVP9
+	default:
+		return nil, fmt.Errorf("SDL2 example does not suport '%s'", codecType)
+	}
+	return v, nil
+}
+
+func renderFrame(renderer *sdl.Renderer, img decoder.DecodedImage, windowWidth int32, windowHeight int32) error {
+	texture, err := renderer.CreateTexture(sdl.PIXELFORMAT_YV12, sdl.TEXTUREACCESS_STREAMING, int32(img.Width()), int32(img.Height()))
+	if err != nil {
+		return fmt.Errorf("Failed to create SDL texture: %w", err)
+	}
+	defer texture.Destroy()
+
+	err = texture.UpdateYUV(nil, img.Plane(0), img.Stride(0), img.Plane(1), img.Stride(1), img.Plane(2), img.Stride(2))
+	if err != nil {
+		return fmt.Errorf("Failed to update SDL Texture: %w", err)
+	}
+
+	src := &sdl.Rect{0, 0, int32(img.Width()), int32(img.Height())}
+	dst := &sdl.Rect{0, 0, windowWidth, windowHeight}
+
+	if img.Width() > img.Height() {
+		dst.H = int32(float64(windowWidth*int32(img.Height())) / float64(img.Width()))
+		dst.Y = (windowHeight - dst.H) / 2
+	} else {
+		dst.W = int32(float64(windowHeight*int32(img.Width())) / float64(img.Height()))
+		dst.X = (windowWidth - dst.W) / 2
+	}
+
+	renderer.Clear()
+	renderer.Copy(texture, src, dst)
+	renderer.Present()
+
+	return nil
 }

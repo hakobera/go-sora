@@ -4,9 +4,12 @@ go-sora と Pion、libvpx を使って、WebRTC SFU Sora 経由で受け取っ�
 
 ## 既知の問題
 
-* 長時間受信し続けるとアクセス例外が発生する。特に受信する動画の解像度が高い場合に頻発するので、解像度は VGA (640x480) 以下に設定することを推奨します。
+* 長時間受信し続けると、以下のようなエラーが発生することがあります。特に受信する動画の解像度が高い場合、もしくは送信側でビットレート指定をした場合に頻発するので、問題が発生した場合は、解像度を下げたり、ビットレート指定を外すことを推奨します。
+  * 動画の表示が乱れる
+  * `Failed to process video frame: Failed to decode frame. Corrupt frame detected : Keyframe / intra-only frame required to reset decoder state` というエラーが出て、動画が止まる
+  * メモリアクセス例外が発生する
 
-この問題は go-sora 自体ではなく、VPX Decoder の実装による問題です。
+この問題は Sora もしくは go-sora 自体ではなく、[VPX Decoder](https://github.com/hakobera/go-webrtc-decoder) の実装による問題です。
 
 ## 使い方
 
@@ -51,6 +54,24 @@ go run . -url wss://sora-labo.shiguredo.jp/signaling -channel-id <your_github_id
 
 プログラムを終了するには、`Ctrl+C` を押します。
 
+## 追加オプション
+
+### VP9 を受信する
+
+VP9 を受信する場合は、`-video-codec VP9` を指定します。
+
 ### 詳細ログを出力する
 
 詳細ログを出力する場合は、`-verbose` オプションを追加します。
+
+### サイマルキャスト受信する
+
+Sora のオンラインサンプル 「サイマルキャスト送信」をブラウザで開き、接続したいチャンネルIDを入力し、動画のエンコード方式に `VP8` を選択して、connect ボタンを押します。
+
+上記で入力したチャンネルIDをコマンドラインパラメータとして指定します。
+
+```console
+go run . -url wss://sora-labo.shiguredo.jp/signaling -channel-id <your_github_id>@sora-labo -signaling-key <your_signaling_key> -video-codec VP8 -simulcast
+```
+
+サイマルキャストでは VP9 は指定できません。

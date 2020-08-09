@@ -41,11 +41,13 @@ type Connection struct {
 	onConnectHandler     func()
 	onDisconnectHandler  func(reason string, err error)
 	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
-	onByeHandler         func()
+	onNotifyHandler      func(eventType string, message []byte)
+	onPushHandler        func(message []byte)
 
 	callbackMu sync.Mutex
 }
 
+// Connect は sora に接続します
 func (c *Connection) Connect() error {
 	if c.ws != nil || c.pc != nil {
 		c.trace("connection already exists")
@@ -55,10 +57,12 @@ func (c *Connection) Connect() error {
 	return nil
 }
 
+// Disconnect は sora から切断します
 func (c *Connection) Disconnect() {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 
+	c.sendDisconnectMessage()
 	c.closePeerConnection()
 	c.closeWebSocketConnection()
 	c.connectionID = ""
@@ -70,7 +74,6 @@ func (c *Connection) Disconnect() {
 	c.onConnectHandler = func() {}
 	c.onDisconnectHandler = func(reason string, err error) {}
 	c.onTrackPacketHandler = func(track *webrtc.Track, packet *rtp.Packet) {}
-	c.onByeHandler = func() {}
 }
 
 // OnOpen は open イベント発生時のコールバック関数を設定します。
@@ -101,11 +104,18 @@ func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packe
 	c.onTrackPacketHandler = f
 }
 
-// OnBye は bye イベント発生時のコールバック関数を設定します。
-func (c *Connection) OnBye(f func()) {
+// OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnNotify(f func(eventType string, message []byte)) {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
-	c.onByeHandler = f
+	c.onNotifyHandler = f
+}
+
+// OnPush は Sora から push メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnPush(f func(message []byte)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onPushHandler = f
 }
 
 func (c *Connection) trace(format string, v ...interface{}) {
@@ -164,9 +174,16 @@ func (c *Connection) sendMsg(v interface{}) error {
 	return nil
 }
 
-func (c *Connection) sendPongMessage() error {
+func (c *Connection) sendPongMessage(stats bool) error {
 	msg := &pongMessage{
-		Type: "pong",
+		Type:  "pong",
+		Stats: []webrtc.Stats{},
+	}
+
+	if stats && c.pc != nil {
+		for _, s := range c.pc.GetStats() {
+			msg.Stats = append(msg.Stats, s)
+		}
 	}
 
 	if err := c.sendMsg(msg); err != nil {
@@ -178,17 +195,27 @@ func (c *Connection) sendPongMessage() error {
 func (c *Connection) sendConnectMessage() error {
 	msg := &connectMessage{
 		Type:        "connect",
-		SoraClient:  ClientVersion,
+		SoraClient:  clientVersion,
 		Environment: fmt.Sprintf("Pion WebRTC on %s %s", runtime.GOOS, runtime.GOARCH),
 		Role:        c.Options.Role,
 		ChannelID:   c.Options.ChannelID,
+		ClientID:    c.Options.ClientID,
 		Sdp:         "",
 		Audio:       c.Options.Audio,
-		Video: video{
-			CodecType: c.Options.Video.Name,
-		},
-		Simulcast: c.Options.Simulcast,
-		Metadata:  c.Options.Metadata,
+		Video:       c.Options.Video,
+		Simulcast:   c.Options.Simulcast,
+		Metadata:    c.Options.Metadata,
+	}
+
+	if err := c.sendMsg(msg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Connection) sendDisconnectMessage() error {
+	msg := &signalingMessage{
+		Type: "disconnect",
 	}
 
 	if err := c.sendMsg(msg); err != nil {
@@ -208,9 +235,13 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 		m.RegisterCodec(codec)
 	}
 
-	vcs := m.GetCodecsByName(c.Options.Video.Name)
+	videoCodecType, err := CreateVideoCodec(c.Options.Video.CodecType)
+	if err != nil {
+		return err
+	}
+	vcs := m.GetCodecsByName(videoCodecType.Name)
 	if len(vcs) == 0 {
-		return fmt.Errorf("Remote peer does not support %s", c.Options.Video.Name)
+		return fmt.Errorf("Remote peer does not support %s", c.Options.Video.CodecType)
 	}
 	c.trace("%+v", *vcs[0])
 
@@ -500,9 +531,17 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 
 	switch message.Type {
 	case "ping":
-		c.sendPongMessage()
+		pingMsg := &pingMessage{}
+		if err := unmarshalMessage(c, rawMessage, &pingMsg); err != nil {
+			return err
+		}
+		c.sendPongMessage(pingMsg.Stats)
 	case "notify":
-		// Do nothing
+		notifyMsg := &notifyMessage{}
+		if err := unmarshalMessage(c, rawMessage, &notifyMsg); err != nil {
+			return err
+		}
+		c.onNotifyHandler(notifyMsg.EventType, rawMessage)
 		return nil
 	case "offer":
 		offerMsg := &offerMessage{}
@@ -524,6 +563,9 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 			return err
 		}
 		return c.setOffer(updateMsg)
+	case "push":
+		c.onPushHandler(rawMessage)
+		return nil
 	default:
 		c.trace("invalid message type %s", message.Type)
 		return errorInvalidMessageType
