@@ -35,7 +35,7 @@ func strPtr(s string) *string {
 func createOfferSessionDescription(sdp string) webrtc.SessionDescription {
 	return webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
-		SDP:  sdp,
+		SDP:  cleanupSDP(sdp),
 	}
 }
 

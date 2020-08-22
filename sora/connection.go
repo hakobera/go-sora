@@ -2,7 +2,6 @@ package sora
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -40,6 +39,7 @@ type Connection struct {
 	onOpenHandler        func()
 	onConnectHandler     func()
 	onDisconnectHandler  func(reason string, err error)
+	onTrackHandler       func(track *webrtc.Track)
 	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
 	onNotifyHandler      func(eventType string, message []byte)
 	onPushHandler        func(message []byte)
@@ -73,6 +73,7 @@ func (c *Connection) Disconnect() {
 	c.onOpenHandler = func() {}
 	c.onConnectHandler = func() {}
 	c.onDisconnectHandler = func(reason string, err error) {}
+	c.onTrackHandler = func(track *webrtc.Track) {}
 	c.onTrackPacketHandler = func(track *webrtc.Track, packet *rtp.Packet) {}
 }
 
@@ -95,6 +96,13 @@ func (c *Connection) OnDisconnect(f func(reason string, err error)) {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 	c.onDisconnectHandler = f
+}
+
+// OnTrack は RTP Packet 受診時に発生するコールバック関数を設定します。
+func (c *Connection) OnTrack(f func(track *webrtc.Track)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onTrackHandler = f
 }
 
 // OnTrackPacket は RTP Packet 受診時に発生するコールバック関数を設定します。
@@ -204,6 +212,7 @@ func (c *Connection) sendConnectMessage() error {
 		Audio:       c.Options.Audio,
 		Video:       c.Options.Video,
 		Simulcast:   c.Options.Simulcast,
+		Multistream: c.Options.Multistream,
 		Metadata:    c.Options.Metadata,
 	}
 
@@ -311,6 +320,8 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 		}()
 
 		c.trace("peerConnection.ontrack(): %d, codec: %s", track.PayloadType(), track.Codec().Name)
+		c.onTrackHandler(track)
+
 		go func() {
 			for {
 				rtp, readErr := track.ReadRTP()
@@ -408,6 +419,9 @@ func (c *Connection) createAnswer() error {
 		err = c.sendMsg(answerMsg)
 		if err != nil {
 			return err
+		}
+		if msgType == "answer" {
+			c.answerSent = true
 		}
 	}
 	return nil
@@ -521,9 +535,8 @@ loop:
 
 func (c *Connection) handleMessage(rawMessage []byte) error {
 	message := &signalingMessage{}
-	if err := json.Unmarshal(rawMessage, &message); err != nil {
-		c.trace("invalid JSON, rawMessage: %s, error: %v", rawMessage, err)
-		return errorInvalidJSON
+	if err := unmarshalMessage(c, rawMessage, &message); err != nil {
+		return err
 	}
 
 	c.trace("recv type: %s, rawMessage: %s", message.Type, string(rawMessage))
@@ -550,20 +563,17 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 			return err
 		}
 
-		osdp := offerMsg.Sdp
-		offerMsg.Sdp = cleanupSDP(osdp)
-
 		err = c.createPeerConnection(offerMsg)
 		if err != nil {
 			return err
 		}
 		return c.setOffer(createOfferSessionDescription(offerMsg.Sdp))
 	case "update":
-		updateMsg := webrtc.SessionDescription{}
+		updateMsg := &answerMessage{}
 		if err := unmarshalMessage(c, rawMessage, &updateMsg); err != nil {
 			return err
 		}
-		return c.setOffer(updateMsg)
+		return c.setOffer(createOfferSessionDescription(updateMsg.Sdp))
 	case "push":
 		c.onPushHandler(rawMessage)
 		return nil

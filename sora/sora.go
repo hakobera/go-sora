@@ -15,11 +15,12 @@ const (
 // DefaultOptions は Sora 接続設定のデフォルト値を生成して返します。
 func DefaultOptions() *ConnectionOptions {
 	return &ConnectionOptions{
-		Role:     RecvOnlyRole,
-		Audio:    true,
-		Video:    &Video{CodecType: webrtc.VP9},
-		Debug:    false,
-		Metadata: &Metadata{},
+		Role:        RecvOnlyRole,
+		Audio:       true,
+		Video:       &Video{CodecType: webrtc.VP9},
+		Multistream: false,
+		Debug:       false,
+		Metadata:    &Metadata{},
 	}
 }
 
@@ -63,6 +64,7 @@ func NewConnection(soraURL string, channelID string, options *ConnectionOptions)
 		onOpenHandler:        func() {},
 		onConnectHandler:     func() {},
 		onDisconnectHandler:  func(reason string, err error) {},
+		onTrackHandler:       func(track *webrtc.Track) {},
 		onTrackPacketHandler: func(track *webrtc.Track, packet *rtp.Packet) {},
 		onNotifyHandler:      func(eventType string, message []byte) {},
 		onPushHandler:        func(message []byte) {},
