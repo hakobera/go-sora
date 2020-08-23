@@ -36,13 +36,15 @@ type Connection struct {
 	connectionState webrtc.ICEConnectionState
 	answerSent      bool
 
-	onOpenHandler        func()
-	onConnectHandler     func()
-	onDisconnectHandler  func(reason string, err error)
-	onTrackHandler       func(track *webrtc.Track)
-	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
-	onNotifyHandler      func(eventType string, message []byte)
-	onPushHandler        func(message []byte)
+	onOpenHandler            func()
+	onConnectHandler         func()
+	onDisconnectHandler      func(reason string, err error)
+	onTrackHandler           func(track *webrtc.Track)
+	onTrackPacketHandler     func(track *webrtc.Track, packet *rtp.Packet)
+	onSignalingNotifyHandler func(eventType string, message *SignalingNotifyMessage)
+	onSpotlightNotifyHandler func(eventType string, message *SpotlightNotifyMessage)
+	onNetworkNotifyHandler   func(eventType string, message *NetworkNotifyMessage)
+	onPushHandler            func(message []byte)
 
 	callbackMu sync.Mutex
 }
@@ -73,8 +75,26 @@ func (c *Connection) Disconnect() {
 	c.onOpenHandler = func() {}
 	c.onConnectHandler = func() {}
 	c.onDisconnectHandler = func(reason string, err error) {}
+	c.onSignalingNotifyHandler = func(eventType string, message *SignalingNotifyMessage) {}
+	c.onSpotlightNotifyHandler = func(eventType string, message *SpotlightNotifyMessage) {}
+	c.onNetworkNotifyHandler = func(eventType string, message *NetworkNotifyMessage) {}
 	c.onTrackHandler = func(track *webrtc.Track) {}
 	c.onTrackPacketHandler = func(track *webrtc.Track, packet *rtp.Packet) {}
+}
+
+// ConnectionID はコネクションIDを返します。
+func (c *Connection) ConnectionID() string {
+	return c.connectionID
+}
+
+// ClientID はクライアントIDを返します。
+func (c *Connection) ClientID() string {
+	return c.clientID
+}
+
+// ChannelID は接続しているチャンネルIDを返します。
+func (c *Connection) ChannelID() string {
+	return c.Options.ChannelID
 }
 
 // OnOpen は open イベント発生時のコールバック関数を設定します。
@@ -113,10 +133,24 @@ func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packe
 }
 
 // OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
-func (c *Connection) OnNotify(f func(eventType string, message []byte)) {
+func (c *Connection) OnSignalingNotify(f func(eventType string, message *SignalingNotifyMessage)) {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
-	c.onNotifyHandler = f
+	c.onSignalingNotifyHandler = f
+}
+
+// OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnSpotlightNotify(f func(eventType string, message *SpotlightNotifyMessage)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onSpotlightNotifyHandler = f
+}
+
+// OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnNetworkNotify(f func(eventType string, message *NetworkNotifyMessage)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onNetworkNotifyHandler = f
 }
 
 // OnPush は Sora から push メッセージを受け取った時に発生するコールバック関数を設定します。
@@ -555,7 +589,31 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 		if err := unmarshalMessage(c, rawMessage, &notifyMsg); err != nil {
 			return err
 		}
-		c.onNotifyHandler(notifyMsg.EventType, rawMessage)
+
+		switch notifyMsg.EventType {
+		case "connection.created":
+			fallthrough
+		case "connection.updated":
+			fallthrough
+		case "connection.destroyed":
+			signalingNotifyMsg := &SignalingNotifyMessage{}
+			if err := unmarshalMessage(c, rawMessage, &signalingNotifyMsg); err != nil {
+				return err
+			}
+			c.onSignalingNotifyHandler(notifyMsg.EventType, signalingNotifyMsg)
+		case "spotlight.changed":
+			spotlightNotifyMsg := &SpotlightNotifyMessage{}
+			if err := unmarshalMessage(c, rawMessage, &spotlightNotifyMsg); err != nil {
+				return err
+			}
+			c.onSpotlightNotifyHandler(notifyMsg.EventType, spotlightNotifyMsg)
+		case "network.status":
+			networkNotifyMsg := &NetworkNotifyMessage{}
+			if err := unmarshalMessage(c, rawMessage, &networkNotifyMsg); err != nil {
+				return err
+			}
+			c.onNetworkNotifyHandler(notifyMsg.EventType, networkNotifyMsg)
+		}
 		return nil
 	case "offer":
 		offerMsg := &offerMessage{}

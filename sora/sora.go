@@ -61,13 +61,15 @@ func NewConnection(soraURL string, channelID string, options *ConnectionOptions)
 		connectionState: webrtc.ICEConnectionStateNew,
 		answerSent:      false,
 
-		onOpenHandler:        func() {},
-		onConnectHandler:     func() {},
-		onDisconnectHandler:  func(reason string, err error) {},
-		onTrackHandler:       func(track *webrtc.Track) {},
-		onTrackPacketHandler: func(track *webrtc.Track, packet *rtp.Packet) {},
-		onNotifyHandler:      func(eventType string, message []byte) {},
-		onPushHandler:        func(message []byte) {},
+		onOpenHandler:            func() {},
+		onConnectHandler:         func() {},
+		onDisconnectHandler:      func(reason string, err error) {},
+		onTrackHandler:           func(track *webrtc.Track) {},
+		onTrackPacketHandler:     func(track *webrtc.Track, packet *rtp.Packet) {},
+		onSignalingNotifyHandler: func(eventType string, message *SignalingNotifyMessage) {},
+		onSpotlightNotifyHandler: func(eventType string, message *SpotlightNotifyMessage) {},
+		onNetworkNotifyHandler:   func(eventType string, message *NetworkNotifyMessage) {},
+		onPushHandler:            func(message []byte) {},
 	}
 
 	return c
