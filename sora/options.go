@@ -23,6 +23,9 @@ type ConnectionOptions struct {
 	// Simulcast の設定
 	Simulcast *Simulcast
 
+	// Multistream の設定
+	Multistream bool
+
 	// Metadata
 	Metadata *Metadata
 
