@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pion/rtp"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 )
 
 const (

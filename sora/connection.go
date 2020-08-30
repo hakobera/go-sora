@@ -11,7 +11,7 @@ import (
 
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 )
@@ -297,7 +297,6 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 	}
 
 	s := webrtc.SettingEngine{}
-	s.SetTrickle(true)
 	s.SetAnsweringDTLSRole(webrtc.DTLSRoleClient)
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m), webrtc.WithSettingEngine(s))

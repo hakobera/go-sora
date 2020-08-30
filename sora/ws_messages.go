@@ -3,7 +3,7 @@ package sora
 import (
 	"fmt"
 
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 )
 
 // Signaling の型定義は以下のURLを参照
