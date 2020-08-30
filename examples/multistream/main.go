@@ -8,7 +8,7 @@ import (
 
 	"github.com/hakobera/go-sora/sora"
 	"github.com/pion/rtp"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/veandco/go-sdl2/sdl"
 )
 

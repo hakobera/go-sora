@@ -8,7 +8,7 @@ import (
 	"github.com/hakobera/go-webrtc-decoder/decoder"
 	"github.com/hakobera/go-webrtc-decoder/decoder/vpx"
 	"github.com/pion/rtp"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
