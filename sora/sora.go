@@ -61,7 +61,7 @@ func NewConnection(soraURL string, channelID string, options *ConnectionOptions)
 		connectionState: webrtc.ICEConnectionStateNew,
 		answerSent:      false,
 
-		onOpenHandler:            func() {},
+		onOpenHandler:            func(pc *webrtc.PeerConnection, m webrtc.MediaEngine) {},
 		onConnectHandler:         func() {},
 		onDisconnectHandler:      func(reason string, err error) {},
 		onTrackHandler:           func(track *webrtc.Track) {},

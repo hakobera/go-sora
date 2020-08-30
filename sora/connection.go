@@ -36,7 +36,7 @@ type Connection struct {
 	connectionState webrtc.ICEConnectionState
 	answerSent      bool
 
-	onOpenHandler            func()
+	onOpenHandler            func(pc *webrtc.PeerConnection, m webrtc.MediaEngine)
 	onConnectHandler         func()
 	onDisconnectHandler      func(reason string, err error)
 	onTrackHandler           func(track *webrtc.Track)
@@ -72,7 +72,7 @@ func (c *Connection) Disconnect() {
 	c.connectionState = webrtc.ICEConnectionStateNew
 	c.answerSent = false
 
-	c.onOpenHandler = func() {}
+	c.onOpenHandler = func(pc *webrtc.PeerConnection, m webrtc.MediaEngine) {}
 	c.onConnectHandler = func() {}
 	c.onDisconnectHandler = func(reason string, err error) {}
 	c.onSignalingNotifyHandler = func(eventType string, message *SignalingNotifyMessage) {}
@@ -97,8 +97,13 @@ func (c *Connection) ChannelID() string {
 	return c.Options.ChannelID
 }
 
+// PeerConnection は webrtc.PeerConnection オブジェクトを返します。
+func (c *Connection) PeerConnection() *webrtc.PeerConnection {
+	return c.pc
+}
+
 // OnOpen は open イベント発生時のコールバック関数を設定します。
-func (c *Connection) OnOpen(f func()) {
+func (c *Connection) OnOpen(f func(pc *webrtc.PeerConnection, m webrtc.MediaEngine)) {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
 	c.onOpenHandler = f
@@ -322,16 +327,16 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 		rtpTransceiverInit.Direction = webrtc.RTPTransceiverDirectionSendrecv
 	}
 
+	_, err = pc.AddTransceiver(webrtc.RTPCodecTypeVideo, rtpTransceiverInit)
+	if err != nil {
+		return err
+	}
+
 	if c.Options.Audio {
 		_, err = pc.AddTransceiver(webrtc.RTPCodecTypeAudio, rtpTransceiverInit)
 		if err != nil {
 			return err
 		}
-	}
-
-	_, err = pc.AddTransceiver(webrtc.RTPCodecTypeVideo, rtpTransceiverInit)
-	if err != nil {
-		return err
 	}
 
 	// Set a Handler for when a new remote track starts, this Handler copies inbound RTP packets,
@@ -414,16 +419,12 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 		c.sendMsg(candidateMsg)
 	})
 
-	if c.pc == nil {
-		c.pc = pc
-		c.onOpenHandler()
-	} else {
-		c.pc = pc
-	}
-
+	c.pc = pc
 	c.clientID = offer.ClientID
 	c.connectionID = offer.ConnectionID
 	c.soraVersion = offer.Version
+
+	c.onOpenHandler(pc, m)
 
 	return nil
 }
@@ -483,6 +484,7 @@ func (c *Connection) closePeerConnection() {
 	if c.pc == nil {
 		return
 	}
+
 	if c.pc != nil && c.pc.SignalingState() == webrtc.SignalingStateClosed {
 		c.pc = nil
 		return
