@@ -140,3 +140,42 @@ type notifyMessage struct {
 	Type      string `json:"type"`
 	EventType string `json:"event_type"`
 }
+
+// SignalingNotifyMessage はシグナリング通知メッセージ
+// https://sora-doc.shiguredo.jp/signaling_notify
+type SignalingNotifyMessage struct {
+	Type                         string                   `json:"type"`
+	EventType                    string                   `json:"event_type"`
+	Role                         string                   `json:"role"`
+	Minutes                      int                      `json:"minutes"`
+	ChannelConnections           int                      `json:"channel_connections"`
+	ChannelUpstreamConnections   int                      `json:"channel_upstream_connections"`
+	ChannelDownstreamConnections int                      `json:"channel_downstream_connections"`
+	ClientID                     string                   `json:"client_id"`
+	ConnectionID                 string                   `json:"connection_id"`
+	Audio                        bool                     `json:"audio"`
+	Video                        bool                     `json:"video"`
+	Metadata                     map[string]interface{}   `json:"metadata"`
+	MetadataList                 []map[string]interface{} `json:"metadata_list"`
+}
+
+// SpotlightNotifyMessage はスポットライト機能を利用した場合のシグナリング通知メッセージ
+// https://sora-doc.shiguredo.jp/signaling_notify#id9
+type SpotlightNotifyMessage struct {
+	Type        string `json:"type"`
+	EventType   string `json:"event_type"`
+	ChannelID   string `json:"channel_id"`
+	ClientID    string `json:"client_id"`
+	SpotlightID string `json:"spotlight_id"`
+	Audio       bool   `json:"audio"`
+	Video       bool   `json:"video"`
+	Fixed       bool   `json:"fixed"`
+}
+
+// NetworkNotifyMessage はネットワークのシグナリング通知メッセージ
+// https://sora-doc.shiguredo.jp/signaling_notify#id9
+type NetworkNotifyMessage struct {
+	Type          string `json:"type"`
+	EventType     string `json:"event_type"`
+	UnstableLevel int    `json:"unstable_level"`
+}

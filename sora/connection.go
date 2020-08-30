@@ -2,7 +2,6 @@ package sora
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -37,12 +36,15 @@ type Connection struct {
 	connectionState webrtc.ICEConnectionState
 	answerSent      bool
 
-	onOpenHandler        func()
-	onConnectHandler     func()
-	onDisconnectHandler  func(reason string, err error)
-	onTrackPacketHandler func(track *webrtc.Track, packet *rtp.Packet)
-	onNotifyHandler      func(eventType string, message []byte)
-	onPushHandler        func(message []byte)
+	onOpenHandler            func()
+	onConnectHandler         func()
+	onDisconnectHandler      func(reason string, err error)
+	onTrackHandler           func(track *webrtc.Track)
+	onTrackPacketHandler     func(track *webrtc.Track, packet *rtp.Packet)
+	onSignalingNotifyHandler func(eventType string, message *SignalingNotifyMessage)
+	onSpotlightNotifyHandler func(eventType string, message *SpotlightNotifyMessage)
+	onNetworkNotifyHandler   func(eventType string, message *NetworkNotifyMessage)
+	onPushHandler            func(message []byte)
 
 	callbackMu sync.Mutex
 }
@@ -73,7 +75,26 @@ func (c *Connection) Disconnect() {
 	c.onOpenHandler = func() {}
 	c.onConnectHandler = func() {}
 	c.onDisconnectHandler = func(reason string, err error) {}
+	c.onSignalingNotifyHandler = func(eventType string, message *SignalingNotifyMessage) {}
+	c.onSpotlightNotifyHandler = func(eventType string, message *SpotlightNotifyMessage) {}
+	c.onNetworkNotifyHandler = func(eventType string, message *NetworkNotifyMessage) {}
+	c.onTrackHandler = func(track *webrtc.Track) {}
 	c.onTrackPacketHandler = func(track *webrtc.Track, packet *rtp.Packet) {}
+}
+
+// ConnectionID はコネクションIDを返します。
+func (c *Connection) ConnectionID() string {
+	return c.connectionID
+}
+
+// ClientID はクライアントIDを返します。
+func (c *Connection) ClientID() string {
+	return c.clientID
+}
+
+// ChannelID は接続しているチャンネルIDを返します。
+func (c *Connection) ChannelID() string {
+	return c.Options.ChannelID
 }
 
 // OnOpen は open イベント発生時のコールバック関数を設定します。
@@ -97,6 +118,13 @@ func (c *Connection) OnDisconnect(f func(reason string, err error)) {
 	c.onDisconnectHandler = f
 }
 
+// OnTrack は RTP Packet 受診時に発生するコールバック関数を設定します。
+func (c *Connection) OnTrack(f func(track *webrtc.Track)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onTrackHandler = f
+}
+
 // OnTrackPacket は RTP Packet 受診時に発生するコールバック関数を設定します。
 func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packet)) {
 	c.callbackMu.Lock()
@@ -105,10 +133,24 @@ func (c *Connection) OnTrackPacket(f func(track *webrtc.Track, packet *rtp.Packe
 }
 
 // OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
-func (c *Connection) OnNotify(f func(eventType string, message []byte)) {
+func (c *Connection) OnSignalingNotify(f func(eventType string, message *SignalingNotifyMessage)) {
 	c.callbackMu.Lock()
 	defer c.callbackMu.Unlock()
-	c.onNotifyHandler = f
+	c.onSignalingNotifyHandler = f
+}
+
+// OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnSpotlightNotify(f func(eventType string, message *SpotlightNotifyMessage)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onSpotlightNotifyHandler = f
+}
+
+// OnNotify は Sora から notify メッセージを受け取った時に発生するコールバック関数を設定します。
+func (c *Connection) OnNetworkNotify(f func(eventType string, message *NetworkNotifyMessage)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.onNetworkNotifyHandler = f
 }
 
 // OnPush は Sora から push メッセージを受け取った時に発生するコールバック関数を設定します。
@@ -204,6 +246,7 @@ func (c *Connection) sendConnectMessage() error {
 		Audio:       c.Options.Audio,
 		Video:       c.Options.Video,
 		Simulcast:   c.Options.Simulcast,
+		Multistream: c.Options.Multistream,
 		Metadata:    c.Options.Metadata,
 	}
 
@@ -310,6 +353,8 @@ func (c *Connection) createPeerConnection(offer *offerMessage) error {
 		}()
 
 		c.trace("peerConnection.ontrack(): %d, codec: %s", track.PayloadType(), track.Codec().Name)
+		c.onTrackHandler(track)
+
 		go func() {
 			for {
 				rtp, readErr := track.ReadRTP()
@@ -407,6 +452,9 @@ func (c *Connection) createAnswer() error {
 		err = c.sendMsg(answerMsg)
 		if err != nil {
 			return err
+		}
+		if msgType == "answer" {
+			c.answerSent = true
 		}
 	}
 	return nil
@@ -520,9 +568,8 @@ loop:
 
 func (c *Connection) handleMessage(rawMessage []byte) error {
 	message := &signalingMessage{}
-	if err := json.Unmarshal(rawMessage, &message); err != nil {
-		c.trace("invalid JSON, rawMessage: %s, error: %v", rawMessage, err)
-		return errorInvalidJSON
+	if err := unmarshalMessage(c, rawMessage, &message); err != nil {
+		return err
 	}
 
 	c.trace("recv type: %s, rawMessage: %s", message.Type, string(rawMessage))
@@ -541,7 +588,31 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 		if err := unmarshalMessage(c, rawMessage, &notifyMsg); err != nil {
 			return err
 		}
-		c.onNotifyHandler(notifyMsg.EventType, rawMessage)
+
+		switch notifyMsg.EventType {
+		case "connection.created":
+			fallthrough
+		case "connection.updated":
+			fallthrough
+		case "connection.destroyed":
+			signalingNotifyMsg := &SignalingNotifyMessage{}
+			if err := unmarshalMessage(c, rawMessage, &signalingNotifyMsg); err != nil {
+				return err
+			}
+			c.onSignalingNotifyHandler(notifyMsg.EventType, signalingNotifyMsg)
+		case "spotlight.changed":
+			spotlightNotifyMsg := &SpotlightNotifyMessage{}
+			if err := unmarshalMessage(c, rawMessage, &spotlightNotifyMsg); err != nil {
+				return err
+			}
+			c.onSpotlightNotifyHandler(notifyMsg.EventType, spotlightNotifyMsg)
+		case "network.status":
+			networkNotifyMsg := &NetworkNotifyMessage{}
+			if err := unmarshalMessage(c, rawMessage, &networkNotifyMsg); err != nil {
+				return err
+			}
+			c.onNetworkNotifyHandler(notifyMsg.EventType, networkNotifyMsg)
+		}
 		return nil
 	case "offer":
 		offerMsg := &offerMessage{}
@@ -549,20 +620,17 @@ func (c *Connection) handleMessage(rawMessage []byte) error {
 			return err
 		}
 
-		osdp := offerMsg.Sdp
-		offerMsg.Sdp = cleanupSDP(osdp)
-
 		err = c.createPeerConnection(offerMsg)
 		if err != nil {
 			return err
 		}
 		return c.setOffer(createOfferSessionDescription(offerMsg.Sdp))
 	case "update":
-		updateMsg := webrtc.SessionDescription{}
+		updateMsg := &answerMessage{}
 		if err := unmarshalMessage(c, rawMessage, &updateMsg); err != nil {
 			return err
 		}
-		return c.setOffer(updateMsg)
+		return c.setOffer(createOfferSessionDescription(updateMsg.Sdp))
 	case "push":
 		c.onPushHandler(rawMessage)
 		return nil

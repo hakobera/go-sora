@@ -88,8 +88,19 @@ func main() {
 		}
 	})
 
-	con.OnNotify(func(eventType string, rawMessage []byte) {
-		log.Printf("OnNotify: event_type=%s, rawMessage=%s", eventType, rawMessage)
+	con.OnSignalingNotify(func(eventType string, message *sora.SignalingNotifyMessage) {
+		switch eventType {
+		case "connection.created":
+			if con.ConnectionID() == message.ConnectionID {
+				log.Printf("Join (Local): connectionID=%s, clientID=%s", message.ConnectionID, message.ClientID)
+			} else {
+				log.Printf("Join (Remote): connectionID=%s, clientID=%s", message.ConnectionID, message.ClientID)
+			}
+		case "connection.updated":
+			log.Printf("Update: connectionID=%s, clientID=%s, %d minutes connected", message.ConnectionID, message.ClientID, message.Minutes)
+		case "connection.destroyed":
+			log.Printf("Leave: connectionID=%s, clientID=%s", message.ConnectionID, message.ClientID)
+		}
 	})
 
 	err = con.Connect()
